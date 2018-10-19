@@ -1,0 +1,168 @@
+org 7C00h
+   
+jmp start 
+    string db 'AX:BX:CX:DX:CS:SS:SP:BP:SI:DI:DS:ES:IP:'
+    regmem dw 1111h, 2222h, 3333h, 4444h, 5555h, 6666h, 7777h, 8888h, 9999h 
+    str db ?
+
+start:
+mov regmem, cs 
+mov regmem[2], ss 
+mov regmem[4], sp
+mov regmem[6], bp
+mov regmem[8], si
+mov regmem[10], di
+mov regmem[12], ds
+mov regmem[14], es
+
+call next
+next:
+    pop regmem[16]
+
+mov str[0], ah
+mov str[1], al
+
+mov str[2], bh
+mov str[3], bl
+
+mov str[4], ch
+mov str[5], cl 
+
+mov str[6], dh
+mov str[7], dl 
+
+mov al, byte ptr regmem + 1
+mov str[8], al
+mov al, byte ptr regmem 
+mov str[9], al 
+
+mov al, byte ptr regmem + 3
+mov str[10], al
+mov al, byte ptr regmem + 2
+mov str[11], al
+
+mov al, byte ptr regmem + 5
+mov str[12], al
+mov al, byte ptr regmem + 4 
+mov str[13], al
+
+mov al, byte ptr regmem + 7
+mov str[14], al
+mov al, byte ptr regmem + 6 
+mov str[15], al
+
+mov al, byte ptr regmem + 9
+mov str[16], al
+mov al, byte ptr regmem + 8 
+mov str[17], al
+
+mov al, byte ptr regmem + 11
+mov str[18], al
+mov al, byte ptr regmem + 10 
+mov str[19], al
+
+mov al, byte ptr regmem + 13
+mov str[20], al
+mov al, byte ptr regmem + 12 
+mov str[21], al
+
+mov al, byte ptr regmem + 15
+mov str[22], al
+mov al, byte ptr regmem + 14 
+mov str[23], al 
+
+mov al, byte ptr regmem + 17
+mov str[24], al
+mov al, byte ptr regmem + 16 
+mov str[25], al
+
+mov si, 0 
+mov di, 0          
+
+mov cx, 13
+           
+xor ax, ax
+
+Loop1:
+    mov al, string[di]
+    mov ah, 0Eh
+    int 10h
+    inc di   
+    mov al, string[di]
+    mov ah, 0Eh
+    int 10h
+    inc di
+    mov al, string[di]
+    mov ah, 0Eh
+    int 10h
+    inc di
+        
+    mov bh, str[si]            
+    mov bl, bh
+    shr bh, 4
+    and bl, 0Fh
+    
+    add bh, "0"
+    add bl, "0"
+    
+    cmp bh, "9"
+    jng label
+             
+    add bh, 7
+
+    label:    
+    cmp bl, "9"
+    jng label2
+
+    add bl, 7 
+
+    label2:
+    mov al, bh
+    mov ah, 0Eh
+    int 10h   
+
+    mov al, bl
+    mov ah, 0Eh
+    int 10h
+        
+    inc si
+    mov bh, str[si]            
+    mov bl, bh
+    shr bh, 4
+    and bl, 0Fh
+
+    add bh, "0"
+    add bl, "0"
+
+    cmp bh, "9"
+    jng label3
+         
+    add bh, 7
+    
+    label3:    
+    cmp bl, "9"
+    jng label4
+
+    add bl, 7
+    
+    label4:
+    mov al, bh
+    mov ah, 0Eh
+    int 10h   
+
+    mov al, bl
+    mov ah, 0Eh
+    int 10h
+            
+    mov al, 0Ah
+    mov ah, 0Eh
+    int 10h
+        
+    mov al, 0Dh
+    mov ah, 0Eh
+    int 10h
+    
+    inc si
+loop Loop1
+    
+ret

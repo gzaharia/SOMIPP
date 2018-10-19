@@ -1,0 +1,68 @@
+org 7C00h
+
+mov al, 00h  
+
+mov dh, 0
+mov dl, 0
+mov ah, 02h
+int 10h 
+
+mov cx, 256  
+
+Block:
+    Except_loop:     
+        cmp al, 00h
+        je nextcharacter
+        
+        cmp al, 07h
+        je nextcharacter
+        
+        cmp al, 08h
+        je nextcharacter
+        
+        cmp al, 09h
+        je nextcharacter
+        
+        cmp al, 0Ah
+        je nextcharacter
+        
+        cmp al, 0Dh
+        je nextcharacter
+        
+        cmp al, 20h
+        je nextcharacter
+        
+        cmp al, 0FFh
+        je nextcharacter  
+        
+        mov ah, 0eh
+        int 10h                
+                   
+        cmp dh, 20
+        je nextcolumn
+        jmp display
+    
+        nextcolumn:   
+            mov dh, 0
+            mov bl, dl
+            add bl, 5
+            mov dl, bl
+            mov ah, 02h
+            int 10h
+            add al, 1
+            dec cx
+            jmp Except_loop 
+            
+        display:   
+            inc dh  
+            mov bl, dl
+            mov dl, bl
+            mov ah, 02h
+            int 10h
+        
+        nextcharacter:
+            add al, 1  
+    
+    Loop Except_loop 
+	
+ret

@@ -1,0 +1,148 @@
+org 100h
+           
+jmp start
+    str1 db 'Int 10h AH 0Eh Zaharia Gabriel 04.10.18'
+    str2 db 'Int 10h AH 0Ah Zaharia Gabriel 04.10.18'
+    str3 db 'Int 10h AH 09h Zaharia Gabriel 04.10.18'
+    str4 db 'Int 10h AH 13h AL 00h Zaharia Gabriel 04.10.18'        
+    str5 db 'Int 10h AH 13h AL 01h Zaharia Gabriel 04.10.18'
+    str6 db 'I', 0EH, 'n', 0EH, 't', 0EH, ' ', 0EH, '1', 0EH, '0', 0EH, 'h', 0EH, ' ', 0Eh, 'A', 0EH, 'H', 0EH, ' ', 0EH, '1', 0EH, '3', 0EH, 'h', 0EH, ' ', 0EH, 'A', 0EH, 'L', 0EH, ' ', 0EH, '0', 0EH, '2', 0EH, 'h', 0EH, ' ', 0EH, 'Z', 0EH, 'a', 0EH, 'h', 0EH, 'a', 0EH, 'r', 0EH, 'i', 0EH, 'a', 0EH, ' ', 0EH, 'G', 0EH, 'a', 0EH, 'b', 0EH, 'r', 0EH, 'i', 0EH, 'e', 0EH, 'l', 0EH, ' ', 0EH, '0', 0EH, '4', 0EH, '.', 0EH, '1', 0EH, '0', 0EH,'.', 0EH, '1',0EH,'8',0Eh
+    str7 db 'I', 0CH, 'n', 0CH, 't', 0CH, ' ', 0CH, '1', 0CH, '0', 0CH, 'h', 0CH, ' ', 0Ch, 'A', 0CH, 'H', 0CH, ' ', 0CH, '1', 0CH, '3', 0CH, 'h', 0CH, ' ', 0CH, 'A', 0CH, 'L', 0CH, ' ', 0CH, '0', 0CH, '3', 0CH, 'h', 0CH, ' ', 0CH, 'Z', 0CH, 'a', 0CH, 'h', 0CH, 'a', 0CH, 'r', 0CH, 'i', 0CH, 'a', 0CH, ' ', 0CH, 'G', 0CH, 'a', 0CH, 'b', 0CH, 'r', 0CH, 'i', 0CH, 'e', 0CH, 'l', 0CH, ' ', 0CH, '0', 0CH, '4', 0CH, '.', 0CH, '1', 0CH, '0', 0CH,'.', 0CH, '1',0CH,'8',0Ch
+    str8 db 'I', 09H, 'n', 09H, 't', 09H, ' ', 09H, '1', 09H, '0', 09H, 'h', 09H, ' ', 09h, 'A', 09H, 'H', 09H, ' ', 09H, '1', 09H, '3', 09H, 'h', 09H, ' ', 09H, 'A', 09H, 'L', 09H, ' ', 09H, '0', 09H, '3', 09H, 'h', 09H, ' ', 09H, 'Z', 09H, 'a', 09H, 'h', 09H, 'a', 09H, 'r', 09H, 'i', 09H, 'a', 09H, ' ', 09H, 'G', 09H, 'a', 09H, 'b', 09H, 'r', 09H, 'i', 09H, 'e', 09H, 'l', 09H, ' ', 09H, '0', 09H, '4', 09H, '.', 09H, '1', 09H, '0', 09H, '.',09H, '1',09H,'8',09h
+    
+start:    
+    ;set the initial position of the cursor accordin to our x and y coordinate.
+    ;dh - y , dl - x.
+    mov dh, 2
+    mov dl, 10
+    mov ah, 2
+    int 10h
+    
+    ;      
+    mov si, -1       
+    mov cx, 39    
+    
+    Method1:
+        inc si
+        mov al, str1[si]
+        mov ah, 0eh
+        int 10h  
+    Loop Method1
+    
+    ;set the cursor at the second position
+    mov dh, 4
+    mov dl, 10
+    mov ah, 2
+    int 10h  
+    
+    mov si, -1 ;to set the initial position
+    mov di, 40 ;pass all of characters
+    mov cx, 40 ;how many times should print
+    
+    Method2: 
+        inc si         
+        mov al, str2[si]
+        mov cx, 1
+        mov ah, 0ah
+        int 10h
+        
+        dec di
+        mov cx, di
+        
+        inc dl
+        mov ah, 2
+        int 10h
+    Loop Method2  
+    
+    ;set the appropriate cursor position
+    mov dh, 6
+    mov dl, 10
+    mov ah, 2
+    int 10h
+    
+    mov si, -1 ;used to go through str3
+    mov di, 40 ;used to stop the loop, after counting the total number of characters
+    mov cx, 40 ;used to stop the loop
+    
+    Method3: 
+        inc si         
+        mov al, str3[si]
+        mov bl, 1110b
+        mov cx, 1
+        mov ah, 09h
+        int 10h
+        
+        dec di
+        mov cx, di
+        
+        inc dl
+        mov ah, 2
+        int 10h
+    Loop Method3
+    
+    jmp Method4  ;go to the next method
+    
+    Method4:
+        mov al, 01h
+	    mov bl, 0011_1011b
+	    mov cx, 46
+	    mov dh, 8
+	    mov dl, 10	    
+	    mov bp, offset str4
+	    mov ah, 13h
+	    int 10h    	    
+	    
+    jmp Method5
+    
+    Method5:
+        mov al, 00h 
+        mov bl, 1100b
+        mov cx, 46   
+        mov dh, 10
+        mov dl, 10
+        mov bp, offset str5
+        mov ah, 13h
+        int 10h 
+        
+    jmp Method6 
+    
+    Method6:
+        mov al, 02h
+        mov cx, 46
+        mov dh, 12
+        mov dl, 10
+        mov bp, offset str6
+        mov ah, 13h
+        int 10h  
+        
+    jmp Method7
+    
+    Method7:
+        mov al, 03h
+        mov cx, 46
+        mov dh, 14
+        mov dl, 10
+        mov bp, offset str7
+        mov ah, 13h
+        int 10h  
+        
+        mov dh, 16
+        mov dl, 10
+        mov ah, 02h
+        int 10h
+        
+        
+        mov ax, 0b800h
+        mov es, ax
+        mov di, 2580
+        
+        mov cx, 92
+        mov si, 0
+        Met8:
+            mov al, str8[si]
+            mov es:[di], al
+            inc si
+            add di, 1
+        Loop Met8   
+                
+ret  
