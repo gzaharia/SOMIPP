@@ -1,9 +1,4 @@
 name "kernel"
-
-;directives             
-       
-        
-
                             
 ; org 7c00h
 org 0000h      
@@ -375,6 +370,17 @@ DEFINE_GET_STRING
 DEFINE_PRINT_STRING
 DEFINE_STREQU
 
+MACRO PRINT_PROMPT
+    get_cursor_pos
+    mov al, 0011b
+    mov bh, 0
+    mov bl, 0
+    mov cx, (prompt_end - offset prompt) >> 1
+    lea bp, prompt
+    mov ah, 13h
+    int 10h
+ENDM
+
    
 start:  
 
@@ -383,16 +389,9 @@ start:
         pop ds               
            
         start_printing:
-            ; Print prompt
-            get_cursor_pos
-            mov al, 0011b
-            mov bh, 0
-            mov bl, 0
-            mov cx, (prompt_end - offset prompt) >> 1
-            lea bp, prompt
-            mov ah, 13h
-            int 10h
-
+            putc 0ah
+            putc 0dh
+            print_prompt
             xor di, di 
 
         printing:
@@ -423,7 +422,7 @@ start:
         Backspace:  
                 test di, di
                 ;jz call beep    
-                jz start_printing
+                jz printing
                 mov ah, 03h
                 mov bh, 0h ; set page number
                 int 10h ; get cursor position and size
