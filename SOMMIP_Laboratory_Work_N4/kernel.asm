@@ -18,7 +18,10 @@ jmp start
             int 10h
         endm putch
         
-             
+        PUT_NEWLINE MACRO
+            PUTC 0ah
+            PUTC 0dh
+        ENDM
              
         macro get_pos
             mov ah, 03h
@@ -32,6 +35,44 @@ jmp start
             mov ah, 02h
             int 10h
         endm set_pos
+
+        CLEAR_SCREEN PROC NEAR
+            PUSH    AX      ; store registers...
+            PUSH    DS      ;
+            PUSH    BX      ;
+            PUSH    CX      ;
+            PUSH    DI      ;
+
+            MOV     AX, 40h
+            MOV     DS, AX  ; for getting screen parameters.
+            MOV     AH, 06h ; scroll up function id.
+            MOV     AL, 0   ; scroll all lines!
+            MOV     BH, 07  ; attribute for new lines.
+            MOV     CH, 0   ; upper row.
+            MOV     CL, 0   ; upper col.
+            MOV     DI, 84h ; rows on screen -1,
+            MOV     DH, [DI] ; lower row (byte).
+            MOV     DI, 4Ah ; columns on screen,
+            MOV     DL, [DI]
+            DEC     DL      ; lower col.
+            INT     10h
+
+            ; set cursor position to top
+            ; of the screen:
+            MOV     BH, 0   ; current page.
+            MOV     DL, 0   ; col.
+            MOV     DH, 0   ; row.
+            MOV     AH, 02
+            INT     10h
+
+            POP     DI      ; re-store registers...
+            POP     CX      ;
+            POP     BX      ;
+            POP     DS      ;
+            POP     AX      ;
+
+            RET
+        CLEAR_SCREEN ENDP
 
 ;***************************************************************
 ; Compare 2 null terminated strings from DI and SI. The result is written to AL:
@@ -340,22 +381,18 @@ start:
             
         push cs
         pop ds               
-
-
-          
-                
-                
-                mov al,'$'
-                mov bh,0
-                mov ah ,0eh
-                int 10h
-                   
-                mov al,'>'
-                mov bh,0
-                mov ah ,0eh
-                int 10h     
            
         start_printing:
+            ; Print prompt
+            get_cursor_pos
+            mov al, 0011b
+            mov bh, 0
+            mov bl, 0
+            mov cx, (prompt_end - offset prompt) >> 1
+            lea bp, prompt
+            mov ah, 13h
+            int 10h
+
             xor di, di 
 
         printing:
@@ -369,7 +406,7 @@ start:
                 je Enter 
                 
                 cmp di,256
-               ; jge call beep
+                ; jge call beep
                 je printing 
                 
                 mov ah, 0eh
@@ -406,35 +443,24 @@ start:
                 int 10h ; writes space at the cursor position without advancing the cursor
                 dec di    
                 
-                
-                
-                    
                 jmp printing 
              
-                
         
-        Enter: 
-               ; putch 0Ah
-                cmp di,0
-                je Set_Next
+        Enter:
+                cmp di, 0
+                je start_printing
                 get_pos
-               ; mov ah, 03h
-               ; mov bh, 0
-               ; int 10h
                 
                 putch 0Ah
-                ;putch 0Dh
                 get_pos
-                set_pos dh,0
+                set_pos dh, 0
 
                 pusha 
                 lea di,Buff
                 lea si,argv_buff
                 call extract_words
 
-                ; mov si, argv_buff[0]
-                ; call PRINT_STRING
-
+                ; help .........................................................
                 mov di, argv_buff[0]
                 lea si, cmd_str_help
                 call strequ
@@ -446,26 +472,129 @@ start:
                     jmp end_of_cmd_processing
 
                 not_help_cmd:
+
+
+                ; about ........................................................
+                mov di, argv_buff[0]
+                lea si, cmd_str_about
+                call strequ
+
+                cmp al, 0
+                je not_about_cmd
+                    lea si, about_stuff
+                    call PRINT_STRING
+                    jmp end_of_cmd_processing
+
+                not_about_cmd:
+
+
+                ; ascii ........................................................
+                mov di, argv_buff[0]
+                lea si, cmd_str_ascii
+                call strequ
+
+                cmp al, 0
+                je not_ascii_cmd
+                    pusha
+                    xor si, si
+
+                    ascii_print_loop:
+                        mov ax, si
+                        mov ah, 0Eh
+                        int 10h
+
+                        inc si
+
+                        cmp si, 256
+                        jne ascii_print_loop
+                    popa
+                    jmp end_of_cmd_processing
+
+                not_ascii_cmd:
+
+
+                ; clear ........................................................
+                mov di, argv_buff[0]
+                lea si, cmd_str_clear
+                call strequ
+
+                cmp al, 0
+                je not_clear_cmd
+                    call clear_screen
+                    jmp end_of_cmd_processing
+
+                not_clear_cmd:
+
+
+                ; beep .........................................................
+                mov di, argv_buff[0]
+                lea si, cmd_str_beep
+                call strequ
+
+                cmp al, 0
+                je not_beep_cmd
+                    putc 7
+                    jmp end_of_cmd_processing
+
+                not_beep_cmd:
+
+
+                ; reboot .......................................................
+                mov di, argv_buff[0]
+                lea si, cmd_str_reboot
+                call strequ
+
+                cmp al, 0
+                je not_reboot_cmd
+                    int 19h
+                    jmp end_of_cmd_processing
+
+                not_reboot_cmd:
+
+
+                ; echo .........................................................
+                mov di, argv_buff[0]
+                lea si, cmd_str_echo
+                call strequ
+
+                cmp al, 0
+                je not_echo_cmd
+                    pusha
+                    lea di, argv_buff
+                    ; Ignore argv[0]
+                    add di, 2
+
+                    echo_argv_loop:
+                        cmp w. [di], 0
+                        je echo_argv_loop_end
+
+                        mov si, w. [di]
+                        call print_string
+                        putc ' '
+
+                        add di, 2
+                        jmp echo_argv_loop
+
+                    echo_argv_loop_end:
+
+                    put_newline
+                    popa
+                    jmp end_of_cmd_processing
+
+                not_echo_cmd:
+
+
+                ; unknown cmd ..................................................
                 unknown_cmd:
                     mov si, argv_buff[0]
                     call print_string
 
-                    putch ' '
                     putch ':'
                     putch ' '
                     lea si, unknown_cmd_str
                     call print_string
                 end_of_cmd_processing:
                 popa
-
-
-                ; ; print buffer
-                ; mov al, 1
-                ; mov bl, 0Fh
-                ; mov cx, di
-                ; mov bp, offset Buff
-                ; mov ah, 13h
-                ; int 10h
                 
                 ; new line
                 mov ah, 0eh
@@ -474,43 +603,36 @@ start:
                 mov al, 0Ah
                 int 10h
             
-                         
-                
-                jmp Set_Next
-                
-                
-                   
-        Set_Next:     
-                mov ah, 0eh
-                mov al, 0Dh
-                int 10h
-                mov al, 0Ah
-                int 10h
-                   
-                ; xor di, di
-                
-                mov al,'$'
-                mov bh,0
-                mov ah ,0eh
-                int 10h
-                
-                mov al,'>'
-                mov bh,0
-                mov ah ,0eh
-                int 10h
-                
-                jmp start_printing   
-                
-            
-            Buff db 512 dup(0)
-            argv_buff dw 128 dup(0)
+                jmp start_printing
 
+; data            
+endl equ 0ah, 0dh
 
-            cmd_str_help    db "help", 0
-            help_stuff db "This is help", 0
-            unknown_cmd_str db "unknown cmd", 0
-        ;proc beep
-         ;   putch 007h
-            
-          ;  ret
-        ;endp    
+Buff db 512 dup(0)
+argv_buff dw 128 dup(0)
+
+cmd_str_help    db "help", 0
+cmd_str_about   db "about", 0
+cmd_str_ascii   db "ascii", 0
+cmd_str_clear   db "clear", 0
+cmd_str_beep    db "beep", 0
+cmd_str_reboot  db "reboot", 0
+cmd_str_echo    db "echo", 0
+
+help_stuff      db "Available commands: ", endl
+                db "about", endl
+                db "ascii - print the ascii table", endl
+                db "clear - clear the screen", endl
+                db "beep - should produce a sound", endl
+                db "reboot - restart the system", endl
+                db "echo - print the arguments", endl
+                db 0
+
+about_stuff     db "This OS was made by Zaharia Gabi FAF161", 0
+
+prompt  db '$', 04h,
+        db '>', 02h,
+        db ' ', 07h
+prompt_end:
+
+unknown_cmd_str db "unknown cmd", 0 
