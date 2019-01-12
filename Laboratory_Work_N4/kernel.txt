@@ -1,0 +1,595 @@
+name "kernel"
+
+#make_bin#
+
+;directives
+#al=0b#
+#ah=00#
+#bh=00#
+#bl=00#
+#ch=00#
+#cl=02#
+#dh=00#
+#dl=00#
+#ds=0800#
+#es=0800#
+#si=7c02#
+#di=0000#
+#bp=0000#
+#cs=0800#
+#ip=C700#
+#ss=07c0#
+#sp=03fe#
+
+org 0C700h
+
+nop
+
+jmp start
+
+putch macro c
+    mov ah,0eh
+    mov al,c
+    int 10h
+endm        
+     
+get_pos macro
+    mov ah, 03h
+    int 10h    
+endm 
+
+set_pos macro y, x
+    mov dh,y
+    mov dl,x 
+    mov bh, 00h
+    mov ah, 02h
+    int 10h
+endm  
+
+print_help macro
+    mov al, 01h
+    mov bh, 00h
+	mov bl, 0Fh
+	mov cx, help_msg_tail - offset help_msg
+	mov bp, offset help_msg
+	mov ah, 13h
+	int 10h
+endm
+
+print_about macro
+    mov al, 01h
+    mov bh, 00h
+	mov bl, 0Fh
+	mov cx, about_msg_tail - offset about_msg
+	mov bp, offset about_msg
+	mov ah, 13h
+	int 10h
+endm 
+
+print_unknown macro    
+    mov al, 01h
+    mov bh, 00h
+	mov bl, 0Fh
+	mov cx, unknown_msg_tail - offset unknown_msg
+	mov bp, offset unknown_msg
+	mov ah, 13h
+	int 10h 
+endm
+
+print_ascii macro
+    pusha
+    
+    xor al, al
+    
+    print_ascii_loop:    
+        cmp al, 255
+        je exit_print_ascii 
+        
+        putch al      
+        add al, 1  
+    
+        jmp print_ascii_loop
+        
+        exit_print_ascii:
+            popa
+endm
+
+clear_screen macro    
+    mov al, 00h  
+    mov bh, 0Fh
+    mov ah, 06h
+    mov ch, 0
+    mov cl, 0
+    mov dh, 24
+    mov dl, 79
+    int 10h
+    
+    set_pos 0, 0     
+endm 
+
+check_letter_lower macro
+    cmp al,'a'
+    jb pprint
+    
+    cmp al, 'z'
+    jnbe pprint
+    
+    sub al,32
+    jmp pprint
+    
+endm
+
+
+DEFINE_STREQU     MACRO
+LOCAL skip_proc_strequ, str_loop, strs_are_not_equal, strs_are_equal, end_of_proc
+
+; protect from wrong definition location:
+JMP     skip_proc_strequ
+
+strequ PROC NEAR
+    push si
+    push di
+
+    str_loop:
+        mov al, b. [di]
+        cmp b. [si], al
+        jne strs_are_not_equal
+
+        cmp b. [si], 0
+        je strs_are_equal
+
+        inc si
+        inc di
+        jmp str_loop
+
+    strs_are_not_equal:
+        mov al, 0
+        jmp end_of_proc
+
+    strs_are_equal:
+        mov al, 1
+
+    end_of_proc:
+    pop di
+    pop si
+
+    RET
+strequ ENDP
+
+skip_proc_strequ:
+DEFINE_STREQU     ENDM
+
+DEFINE_PRINT_STRING     MACRO
+LOCAL   next_char, printed, skip_proc_print_string
+
+; protect from wrong definition location:
+JMP     skip_proc_print_string
+
+PRINT_STRING PROC NEAR
+PUSH    AX      ; store registers...
+PUSH    SI      ;
+
+next_char:      
+    MOV     AL, [SI]
+    CMP     AL, 0
+    JZ      printed
+    INC     SI
+    MOV     AH, 0Eh ; teletype function.
+    INT     10h
+    JMP     next_char
+printed:
+
+POP     SI      ; re-store registers...
+POP     AX      ;
+
+RET
+PRINT_STRING ENDP
+
+skip_proc_print_string:
+
+DEFINE_PRINT_STRING     ENDM
+
+define_extract_words MACRO
+    LOCAL last_char_was_sep
+    LOCAL cmd_loop, its_separator, its_not_separator, end_of_sep_control
+    LOCAL cmd_loop_end 
+
+    last_char_was_sep db 0
+
+extract_words PROC
+    pusha
+
+    mov last_char_was_sep, 1
+    mov w. [si], 0
+    cmd_loop:
+        cmp b. [di], 0
+        je cmd_loop_end
+
+        ; Check if it's a separator
+        ; - Check for space
+        cmp b. [di], ' '
+        je its_separator
+
+        ; - Check for tab
+        cmp b. [di], 9
+        jne its_not_separator
+
+        its_separator:
+            ; Put 0 instead of separators
+            mov b. [di], 0 
+            
+            mov last_char_was_sep, 1
+            jmp end_of_sep_control
+
+        its_not_separator:
+            cmp last_char_was_sep, 1
+            jne end_of_sep_control
+
+            mov last_char_was_sep, 0
+            
+            mov ax, di
+            mov [si], ax
+            
+            add si, 2
+            mov w. [si], 0
+
+        end_of_sep_control:
+
+        inc di
+        jmp cmd_loop
+
+    cmd_loop_end:
+
+    popa
+    ret
+extract_words ENDP
+define_extract_words ENDM
+
+process_commands macro
+    pusha
+        
+    lea     si, Buff
+    mov     cx, chelp_tail - offset chelp
+    lea     di, chelp
+    repe    cmpsb
+    je      help_command  
+    
+    lea     si, Buff
+    mov     cx, cabout_tail - offset cabout
+    lea     di, cabout
+    repe    cmpsb
+    je      about_command
+        
+    lea si, Buff
+    mov cx, cascii_tail - offset cascii
+    lea di, cascii
+    repe cmpsb
+    je ascii_command
+ 
+    lea si, Buff
+    mov cx, cbeep_tail - offset cbeep
+    lea di, cbeep
+    repe cmpsb
+    je beep_command
+      
+    lea si, Buff
+    mov cx, ccls_tail - offset ccls
+    lea di, ccls
+    repe cmpsb
+    je cls_command
+    
+    lea si, Buff
+    mov cx, creboot_tail - offset creboot
+    lea di, creboot
+    repe cmpsb
+    je reboot_command
+    
+    lea si, Buff
+    mov cx, cecho_tail - offset cecho
+    lea di, cecho
+    repe cmpsb
+    je echo_command 
+    
+    lea si, Buff
+    mov cx, cuppercase_tail - offset cuppercase
+    lea di, cuppercase
+    repe cmpsb
+    je uppercase_command
+    
+    lea si, Buff
+    mov cx, cdisableuppercase_tail - offset cdisableuppercase
+    lea di, cdisableuppercase
+    repe cmpsb
+    je disable_uppercase_command
+    
+    jmp unknown_command
+    
+    about_command:
+        print_about
+        jmp exit_process_commands    
+    
+    help_command:
+        print_help        
+        jmp exit_process_commands  
+        
+    ascii_command:
+        print_ascii
+        jmp exit_process_commands 
+       
+    beep_command:
+        putch 07h
+        
+        jmp exit_process_commands 
+        
+    uppercase_command: 
+        mov isUp,1
+        
+        jmp exit_process_commands
+    
+    disable_uppercase_command:
+        mov isUp,0
+        
+        jmp exit_process_commands
+        
+               
+               
+    cls_command:
+        clear_screen
+        
+        jmp exit_process_commands
+               
+    reboot_command:
+        mov ax, 0040h
+        mov ds, ax
+        mov w.[0072h], 0000h
+        jmp 0ffffh:0000h
+        
+        jmp exit_process_commands
+        
+    echo_command:
+        mov di, argv_buff[0]
+            lea si, cecho
+            call strequ
+    
+            cmp al, 0
+            je not_echo_cmd
+                pusha
+                lea di, argv_buff
+                add di, 2
+    
+                echo_argv_loop:
+                    cmp w. [di], 0
+                    je echo_argv_loop_end
+    
+                    mov si, w. [di]
+                    call print_string
+                    putch ' '
+    
+                    add di, 2
+                    jmp echo_argv_loop
+    
+                echo_argv_loop_end:
+    
+                putch 0dh
+                putch 0ah
+                popa
+                jmp exit_process_commands
+    
+            not_echo_cmd:
+                jmp exit_process_commands
+
+        
+    unknown_command:        
+        print_unknown
+        jmp exit_process_commands         
+    
+    exit_process_commands:
+        popa
+endm
+
+define_extract_words
+DEFINE_PRINT_STRING
+DEFINE_STREQU
+
+start: 
+
+push cs
+pop ds
+
+clear_screen             
+       
+mov al,'$'
+mov cx, 1
+mov bh,00h
+mov bl,0Ah
+mov ah ,09h
+int 10h
+
+inc dl
+
+set_pos dh, dl
+   
+mov al,'>'
+mov cx,1
+mov bh,00h
+mov bl,0Eh
+mov ah ,09h
+int 10h 
+
+inc dl
+
+set_pos dh, dl
+ 
+xor di, di    
+        
+printing:
+    mov ah,00h
+    int 16h 
+    
+    
+    cmp al,08h
+    je Backspace 
+    
+    cmp al,0Dh
+    je Enter 
+    
+    cmp di,256
+    je printing
+    
+    
+;    cmp isUp,1
+;    jne pprint
+
+;    check_letter_lower
+    
+;pprint: 
+    
+    mov ah, 0eh
+    int 10h     ;output the current char
+    
+    mov Buff[di], al
+    inc di  
+    
+    
+    
+    jmp printing
+        
+Backspace:  
+    test di, di    
+    jz printing
+    mov ah, 03h
+    mov bh, 0h ; set page number
+    int 10h ; get cursor position and size
+    
+    test dl, dl ; dh - number of columns,  test sets ZF if dl is zero
+    mov ah, 02h
+    jnz not_at_the_edge
+        mov dl, 80 ; move cursor to the right edge
+        dec dh ; and one row above
+    not_at_the_edge: 
+    dec dl
+    int 10h
+    mov ah, 0ah 
+    mov al, ' '
+    mov cx, 1
+    int 10h ; writes space at the cursor position without advancing the cursor
+    dec di           
+    
+    jmp printing 
+     
+Enter:  
+    cmp di,0
+    je Set_Next
+    
+    get_pos
+    
+    putch 0Ah
+    
+    get_pos
+    set_pos dh,0
+    
+    mov [Buff + di], 0 
+    
+    lea di,Buff
+    lea si,argv_buff
+    call extract_words  
+    
+    process_commands
+    
+    mov ah, 0eh
+    mov al, 0Dh
+    int 10h
+    mov al, 0Ah
+    int 10h             
+    
+    jmp Set_Next
+        
+Set_Next:     
+    mov ah, 0eh
+    mov al, 0Dh
+    int 10h
+    mov al, 0Ah
+    int 10h
+       
+    xor di, di
+    
+    get_pos
+    
+    mov al,'$'
+    mov cx, 1
+    mov bh,00h
+    mov bl,0Ah
+    mov ah,09h
+    int 10h
+    
+    inc dl
+    
+    set_pos dh, dl
+       
+    mov al,'>'
+    mov cx,1
+    mov bh,00h
+    mov bl,0Eh
+    mov ah,09h
+    int 10h 
+    
+    inc dl
+    
+    set_pos dh, dl
+    
+    
+    
+    jmp printing    
+
+Buff db 255 dup(0)
+argv_buff dw 128 dup(0)
+
+prompt db '>', 0 
+symbol db '$', 0 
+
+isUp db 0h 
+
+chelp    db "help", 0
+chelp_tail: 
+
+cabout db "about", 0
+cabout_tail:     
+
+cascii db "ascii", 0
+cascii_tail:  
+
+cbeep db "beep", 0
+cbeep_tail:   
+
+cuppercase db "uppercase", 0
+cuppercase_tail:
+
+
+cdisableuppercase db "UPPERCASE", 0
+cdisableuppercase_tail:
+
+ccls db "clean", 0
+ccls_tail:   
+
+creboot db "reboot", 0
+creboot_tail:
+
+cecho db "echo", 0
+cecho_tail: 
+
+help_msg db "The commands:", 0Dh,0Ah
+    db "help - print the list of commands.", 0Dh,0Ah
+    db "about - print some information.", 0Dh, 0Ah
+    db "ascii - print the ascii characters.", 0Dh, 0Ah
+    db "beep - produce a beep.", 0Dh, 0Ah 
+    db "uppercase - convert to uppercase.", 0Dh, 0Ah
+    db "clean - clear the screen.", 0Dh, 0Ah
+    db "echo - print the arguments.", 0Dh, 0Ah
+    db "reboot - performs a reboot of the machine.", 0
+help_msg_tail:
+
+about_msg db "This OS was created by Gabriel Zaharia!", 0
+about_msg_tail:  
+
+unknown_msg db "Unknown command!", 0 
+unknown_msg_tail:    
